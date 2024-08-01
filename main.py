@@ -1,8 +1,5 @@
 import json
-import logging
-
-import telegram
-
+import Dicts
 import Functions
 import requests
 from telegram import Update, MenuButton, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
@@ -11,101 +8,20 @@ from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandle
 
 token = json.load(open('token.json'))['token']
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
-
-reply_keyboard = [
-    ["Start Game", "Leader Board"],
-    # ["Number of siblings", "Something else..."],
-    ["Info"],
-]
-markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-
-reply_keyboard_category = [
-    ["Celebrities", "Movies"],
-    ["Vehicles", "Anime"],
-    ["Math"],
-]
-
-markup_category = ReplyKeyboardMarkup(reply_keyboard_category, one_time_keyboard=True)
-
-reply_keyboard_difficulty = [
-    ["Easy", "Medium", "Hard"],
-]
-
-markup_difficulty = ReplyKeyboardMarkup(reply_keyboard_difficulty, one_time_keyboard=True)
+Functions.log()
 
 MAIN_MENU, CATEGORY, DIFFICULTY, GAME = range(4)
 
-category_id_dict = {
-    'Celebrities': 26,
-    'Movies': 11,
-    'Vehicles': 28,
-    'Anime': 31,
-    'Math': 19,
-}
-
-difficulty_dict = {
-    'Easy': 'easy',
-    'Medium': 'medium',
-    'Hard': 'hard',
-}
-
-difficulty_multiplier = {
-    'Easy': 1,
-    'Medium': 2,
-    'Hard': 3,
-}
-
-
-def getQuestions(cat: str, diff: str) -> list:
-    category_id = category_id_dict[cat]
-    difficult = difficulty_dict[diff]
-    api_url = f"https://opentdb.com/api.php?amount=5&category={category_id}&difficulty={difficult}&type=multiple"
-
-    response = requests.get(api_url)
-    data = response.json()['results']
-
-    questions = []
-
-    for question in data:
-        question_text = question['question']
-        correct_answer = question['correct_answer']
-        incorrect_answers = question['incorrect_answers']
-
-        answers = incorrect_answers + [correct_answer]
-        answers.sort()
-
-        questions.append({
-            'question': question_text,
-            'correct_answer': correct_answer,
-            'answers': answers,
-        })
-
-    return questions
-
+markup = Dicts.markup
+markup_category = Dicts.markup_category
+markup_difficulty = Dicts.markup_difficulty
+category_id_dict = Dicts.category_id_dict
+difficulty_dict = Dicts.difficulty_dict
+difficulty_multiplier = Dicts.difficulty_multiplier
 
 async def start(update: Update, context: CallbackContext) -> int:
+    await Functions.another_user_playing(update, context)
     chat_id = update.effective_chat.id
-    if 'playing_users_id' not in context.chat_data:
-        context.chat_data['playing_users_id'] = update.effective_user.id
-    elif context.chat_data['playing_users_id'] != update.effective_user.id:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text='Another user is already playing the game',
-            reply_to_message_id=update.message.message_id,
-        )
-        return -1
-
-    if update.effective_chat.type == 'private':
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text='Please Start the bot in a group chat',
-        )
-        return -1
 
     await context.bot.send_message(
         chat_id=chat_id,
@@ -117,15 +33,8 @@ async def start(update: Update, context: CallbackContext) -> int:
 
 
 async def info(update: Update, context: CallbackContext) -> int:
+    await Functions.another_user_playing(update, context)
     chat_id = update.effective_chat.id
-    if context.chat_data['playing_users_id'] != update.effective_user.id:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='You are not the one who started the game',
-            reply_to_message_id=update.message.message_id,
-        )
-        return -1
-
     await context.bot.send_message(
         chat_id=chat_id,
         text='Welcome to KSHyst quiz bot. This bot is designed to help you test your knowledge in different categories . just simply press start game and select the category and difficulty you want to play',
@@ -136,16 +45,8 @@ async def info(update: Update, context: CallbackContext) -> int:
 
 
 async def startGame(update: Update, context: CallbackContext) -> int:
+    await Functions.another_user_playing(update, context)
     chat_id = update.effective_chat.id
-    if 'playing_users_id' not in context.chat_data:
-        context.chat_data['playing_users_id'] = update.effective_user.id
-    elif context.chat_data['playing_users_id'] != update.effective_user.id:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text='Another user is already playing the game',
-            reply_to_message_id=update.message.message_id,
-        )
-        return -1
     context.user_data['user_id'] = update.effective_user.id
     context.user_data['chat_id'] = update.effective_chat.id
     context.user_data['is_playing'] = True
@@ -160,14 +61,7 @@ async def startGame(update: Update, context: CallbackContext) -> int:
 
 
 async def category(update: Update, context: CallbackContext) -> int:
-    if context.chat_data['playing_users_id'] != update.effective_user.id:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='You are not the one who started the game',
-            reply_to_message_id=update.message.message_id,
-        )
-        return -1
-
+    await Functions.you_didnt_start_game(update, context)
     chat_id = update.effective_chat.id
     context.user_data['category'] = update.message.text
 
@@ -181,13 +75,7 @@ async def category(update: Update, context: CallbackContext) -> int:
 
 
 async def difficulty(update: Update, context: CallbackContext) -> int:
-    if context.chat_data['playing_users_id'] != update.effective_user.id:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='You are not the one who started the game',
-            reply_to_message_id=update.message.message_id,
-        )
-        return -1
+    await Functions.you_didnt_start_game(update, context)
     chat_id = update.effective_chat.id
     context.user_data['difficulty'] = update.message.text
 
@@ -203,21 +91,14 @@ async def difficulty(update: Update, context: CallbackContext) -> int:
 
 
 async def game(update: Update, context: CallbackContext) -> int:
-    if context.chat_data['playing_users_id'] != update.effective_user.id:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='You are not the one who started the game',
-            reply_to_message_id=update.message.message_id,
-        )
-        return -1
-
+    await Functions.you_didnt_start_game(update, context)
     chat_id = update.effective_chat.id
     question = ""
     correct_answer = ""
     answers = []
 
     if 'questions' not in context.user_data:
-        context.user_data['questions'] = getQuestions(
+        context.user_data['questions'] = Functions.getQuestions(
             cat=context.user_data['category'],
             diff=context.user_data['difficulty'],
         )
@@ -256,7 +137,6 @@ async def game(update: Update, context: CallbackContext) -> int:
 
 
 if __name__ == '__main__':
-
     application = ApplicationBuilder().token(token).build()
 
     application.add_handler(ConversationHandler(
@@ -282,6 +162,6 @@ if __name__ == '__main__':
         fallbacks=[CommandHandler('quit', start)],
     ))
 
-    #Functions.set_bot_commands(application)
+    Functions.set_bot_commands(application)
 
     application.run_polling()
