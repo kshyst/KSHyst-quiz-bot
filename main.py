@@ -1,6 +1,9 @@
 import json
 import logging
 
+import telegram
+
+import Functions
 import requests
 from telegram import Update, MenuButton, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, ApplicationBuilder, \
@@ -158,7 +161,6 @@ async def startGame(update: Update, context: CallbackContext) -> int:
 
 async def category(update: Update, context: CallbackContext) -> int:
     if context.chat_data['playing_users_id'] != update.effective_user.id:
-
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='You are not the one who started the game',
@@ -254,6 +256,7 @@ async def game(update: Update, context: CallbackContext) -> int:
 
 
 if __name__ == '__main__':
+
     application = ApplicationBuilder().token(token).build()
 
     application.add_handler(ConversationHandler(
@@ -276,7 +279,9 @@ if __name__ == '__main__':
                 CallbackQueryHandler(game)
             ],
         },
-        fallbacks=[],
+        fallbacks=[CommandHandler('quit', start)],
     ))
+
+    #Functions.set_bot_commands(application)
 
     application.run_polling()
