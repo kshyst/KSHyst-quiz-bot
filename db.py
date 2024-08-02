@@ -77,16 +77,20 @@ def get_all_math_questions() -> list:
 
 
 def get_all_celebrities_questions():
-    return None
+    cursor.execute("SELECT * FROM questions_celebrities")
+    return cursor.fetchall()
 
 
 def get_all_movies_questions():
-    return None
+    cursor.execute("SELECT * FROM questions_movies")
+    return cursor.fetchall()
 
 
 def get_all_vehicles_questions():
-    return None
+    cursor.execute("SELECT * FROM questions_vehicles")
+    return cursor.fetchall()
 
 
 def get_all_anime_questions():
-    return None
+    cursor.execute("SELECT * FROM questions_anime")
+    return cursor.fetchall()

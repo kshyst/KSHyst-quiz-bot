@@ -11,8 +11,8 @@ reply_keyboard = [
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
 reply_keyboard_category = [
-    # ["Celebrities", "Movies"],
-    # ["Vehicles", "Anime"],
+    ["Celebrities", "Movies"],
+    ["Vehicles", "Anime"],
     ["Math"],
 ]
 
