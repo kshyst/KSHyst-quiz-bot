@@ -6,18 +6,17 @@ from telegram import Update, MenuButton, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, ApplicationBuilder, \
     ConversationHandler, filters, CallbackQueryHandler
 
+import db
+
 token = json.load(open('token.json'))['token']
 
 Functions.log()
 
-MAIN_MENU, CATEGORY, DIFFICULTY, GAME = range(4)
+MAIN_MENU, CATEGORY, GAME = range(3)
+ENTER_CORRECT_ANSWER, ENTER_ANSWER2, ENTER_ANSWER3, ENTER_ANSWER4, ENTER_CATEGORY, THANKS = range(4, 10)
 
 markup = Dicts.markup
 markup_category = Dicts.markup_category
-markup_difficulty = Dicts.markup_difficulty
-category_id_dict = Dicts.category_id_dict
-difficulty_dict = Dicts.difficulty_dict
-difficulty_multiplier = Dicts.difficulty_multiplier
 
 async def start(update: Update, context: CallbackContext) -> int:
     await Functions.another_user_playing(update, context)
@@ -26,6 +25,23 @@ async def start(update: Update, context: CallbackContext) -> int:
     await context.bot.send_message(
         chat_id=chat_id,
         text='Hello, welcome to the bot',
+        reply_markup=markup,
+    )
+
+    return MAIN_MENU
+
+
+async def leader_board(update: Update, context: CallbackContext) -> int:
+    await Functions.another_user_playing(update, context)
+    chat_id = update.effective_chat.id
+    users = db.get_top_10_users()
+    text = "Leader Board\n"
+    for user in users:
+        text += f"{user['user_name']} - {user['score']}\n"
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=text,
         reply_markup=markup,
     )
 
@@ -51,6 +67,8 @@ async def startGame(update: Update, context: CallbackContext) -> int:
     context.user_data['chat_id'] = update.effective_chat.id
     context.user_data['is_playing'] = True
 
+    db.insert_user(user_id=update.effective_user.id, name=update.effective_user.username)
+
     await context.bot.send_message(
         chat_id=chat_id,
         text='Select a category',
@@ -67,21 +85,7 @@ async def category(update: Update, context: CallbackContext) -> int:
 
     await context.bot.send_message(
         chat_id=chat_id,
-        text='Select a difficulty',
-        reply_markup=markup_difficulty,
-    )
-
-    return DIFFICULTY
-
-
-async def difficulty(update: Update, context: CallbackContext) -> int:
-    await Functions.you_didnt_start_game(update, context)
-    chat_id = update.effective_chat.id
-    context.user_data['difficulty'] = update.message.text
-
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=f'You have selected {context.user_data["category"]} category and {context.user_data["difficulty"]} difficulty',
+        text=f'You have selected {context.user_data["category"]} category , press start to start the game',
         reply_markup=InlineKeyboardMarkup.from_button(
             InlineKeyboardButton(text="Start", callback_data="button")
         ),
@@ -100,16 +104,17 @@ async def game(update: Update, context: CallbackContext) -> int:
     if 'questions' not in context.user_data:
         context.user_data['questions'] = Functions.getQuestions(
             cat=context.user_data['category'],
-            diff=context.user_data['difficulty'],
         )
         context.user_data['score'] = 0
 
+    #check if the answer is correct
     if update.callback_query.data in context.user_data['questions'][0]['answers']:
         correct_answer = context.user_data['questions'][0]['correct_answer']
         context.user_data['questions'].pop(0)
         if update.callback_query.data == correct_answer:
-            context.user_data['score'] += 1 * difficulty_multiplier[context.user_data['difficulty']]
+            context.user_data['score'] += 1
 
+    #end the game
     if len(context.user_data['questions']) == 0:
         context.user_data['is_playing'] = False
         del context.user_data['questions']
@@ -119,13 +124,15 @@ async def game(update: Update, context: CallbackContext) -> int:
             text='Game Over your score is: ' + str(context.user_data['score']),
             reply_markup=markup,
         )
+        db.update_user_score(context.user_data['user_id'], context.user_data['score'])
         return MAIN_MENU
 
+    #send the next question
     if context.user_data['questions']:
         question = context.user_data['questions'][0]['question']
         correct_answer = context.user_data['questions'][0]['correct_answer']
         answers = context.user_data['questions'][0]['answers']
-
+        print(answers)
         await context.bot.send_message(
             chat_id=chat_id,
             text=question,
@@ -134,6 +141,114 @@ async def game(update: Update, context: CallbackContext) -> int:
             ),
         )
         return GAME
+
+
+async def add_question(update: Update, context: CallbackContext) -> int:
+    if update.effective_chat.type != 'private':
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='This command only works in a private chat with this bot',
+        )
+        return -1
+
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the question text',
+    )
+
+    return ENTER_CORRECT_ANSWER
+
+
+async def enter_correct_answer(update: Update, context: CallbackContext) -> int:
+    chat_id = update.effective_chat.id
+    context.chat_data['question_text'] = update.message.text
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the correct answer',
+    )
+
+    return ENTER_ANSWER2
+
+
+async def enter_other_answer2(update: Update, context: CallbackContext) -> int:
+    chat_id = update.effective_chat.id
+    context.chat_data['correct_answer'] = update.message.text
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the second answer',
+    )
+
+    return ENTER_ANSWER3
+
+
+async def enter_other_answer3(update: Update, context: CallbackContext) -> int:
+    chat_id = update.effective_chat.id
+    context.chat_data['answer2'] = update.message.text
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the third answer',
+    )
+
+    return ENTER_ANSWER4
+
+
+async def enter_other_answer4(update: Update, context: CallbackContext) -> int:
+    chat_id = update.effective_chat.id
+    context.chat_data['answer3'] = update.message.text
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the fourth answer',
+    )
+
+    return ENTER_CATEGORY
+
+
+async def enter_category(update: Update, context: CallbackContext) -> int:
+    chat_id = update.effective_chat.id
+    context.chat_data['answer4'] = update.message.text
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the category',
+        reply_markup=markup_category
+    )
+
+    return THANKS
+
+
+async def thanks_for_adding_question(update: Update, context: CallbackContext) -> int:
+    if update.message.text not in Dicts.categories:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Invalid category',
+        )
+        return ENTER_CATEGORY
+
+    chat_id = update.effective_chat.id
+    db.insert_question(
+        category=update.message.text.lower(),
+        question=context.chat_data['question_text'],
+        correct_answer=context.chat_data['correct_answer'],
+        answers=','.join([
+            context.chat_data['correct_answer'],
+            context.chat_data['answer2'],
+            context.chat_data['answer3'],
+            context.chat_data['answer4'],
+        ]),
+    )
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Thanks for adding the question',
+        reply_markup=markup,
+    )
+
+    return MAIN_MENU
 
 
 if __name__ == '__main__':
@@ -147,13 +262,34 @@ if __name__ == '__main__':
             MAIN_MENU: [
                 MessageHandler(filters.Regex("^Start Game$"), callback=startGame),
                 MessageHandler(filters.Regex("^Info$"), callback=info),
-                MessageHandler(filters.Regex("^Leader Board$"), callback=start),
+                MessageHandler(filters.Regex("^Leader Board$"), callback=leader_board),
+                ConversationHandler(
+                    entry_points=[MessageHandler(filters.Regex("^Add Question$"), callback=add_question)],
+                    states={
+                        ENTER_CORRECT_ANSWER: [
+                            MessageHandler(filters.Regex(".*"), callback=enter_correct_answer),
+                        ],
+                        ENTER_ANSWER2: [
+                            MessageHandler(filters.Regex(".*"), callback=enter_other_answer2),
+                        ],
+                        ENTER_ANSWER3: [
+                            MessageHandler(filters.Regex(".*"), callback=enter_other_answer3),
+                        ],
+                        ENTER_ANSWER4: [
+                            MessageHandler(filters.Regex(".*"), callback=enter_other_answer4),
+                        ],
+                        ENTER_CATEGORY: [
+                            MessageHandler(filters.Regex(".*"), callback=enter_category),
+                        ],
+                        THANKS: [
+                            MessageHandler(filters.Regex(".*"), callback=thanks_for_adding_question),
+                        ],
+                    },
+                    fallbacks=[],
+                ),
             ],
             CATEGORY: [
                 MessageHandler(filters.Regex("^(Celebrities|Movies|Vehicles|Anime|Math)$"), callback=category),
-            ],
-            DIFFICULTY: [
-                MessageHandler(filters.Regex("^(Easy|Medium|Hard)$"), callback=difficulty),
             ],
             GAME: [
                 CallbackQueryHandler(game)

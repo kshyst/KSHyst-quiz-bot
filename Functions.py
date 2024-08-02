@@ -1,9 +1,10 @@
 import logging
+import re
 
 import requests
 from telegram import BotCommand
 
-from Dicts import category_id_dict, difficulty_dict
+import db
 
 
 async def set_bot_commands(application):
@@ -36,23 +37,33 @@ async def another_user_playing(update, context):
         return -1
 
 
-def getQuestions(cat: str, diff: str) -> list:
-    category_id = category_id_dict[cat]
-    difficult = difficulty_dict[diff]
-    api_url = f"https://opentdb.com/api.php?amount=5&category={category_id}&difficulty={difficult}&type=multiple"
+def getQuestions(cat: str) -> list:
+    global data
 
-    response = requests.get(api_url)
-    data = response.json()['results']
+    # Fetch data based on the category
+    if cat == 'Math':
+        data = db.get_all_math_questions()
+    elif cat == 'Celebrities':
+        data = db.get_all_celebrities_questions()
+    elif cat == 'Movies':
+        data = db.get_all_movies_questions()
+    elif cat == 'Vehicles':
+        data = db.get_all_vehicles_questions()
+    elif cat == 'Anime':
+        data = db.get_all_anime_questions()
+    else:
+        return []  # Return an empty list if the category is not recognized
 
     questions = []
 
-    for question in data:
+    # Limit to 5 questions
+    for i, question in enumerate(data):
+        if i == 5:
+            break
+
         question_text = question['question']
         correct_answer = question['correct_answer']
-        incorrect_answers = question['incorrect_answers']
-
-        answers = incorrect_answers + [correct_answer]
-        answers.sort()
+        answers = question['answers'].split(',')
 
         questions.append({
             'question': question_text,
@@ -61,7 +72,6 @@ def getQuestions(cat: str, diff: str) -> list:
         })
 
     return questions
-
 
 def log():
     logging.basicConfig(
