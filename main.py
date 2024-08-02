@@ -13,10 +13,11 @@ token = json.load(open('token.json'))['token']
 Functions.log()
 
 MAIN_MENU, CATEGORY, GAME = range(3)
-ENTER_CORRECT_ANSWER, ENTER_ANSWER2, ENTER_ANSWER3, ENTER_ANSWER4, ENTER_CATEGORY, THANKS = range(4, 10)
+ENTER_CORRECT_ANSWER, ENTER_ANSWER2, ENTER_ANSWER3, ENTER_ANSWER4, ENTER_QUESTION_TEXT, THANKS = range(4, 10)
 
 markup = Dicts.markup
 markup_category = Dicts.markup_category
+
 
 async def start(update: Update, context: CallbackContext) -> int:
     await Functions.another_user_playing(update, context)
@@ -143,15 +144,27 @@ async def game(update: Update, context: CallbackContext) -> int:
         return GAME
 
 
-async def add_question(update: Update, context: CallbackContext) -> int:
+async def enter_category(update: Update, context: CallbackContext) -> int:
     if update.effective_chat.type != 'private':
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='This command only works in a private chat with this bot',
         )
         return -1
-
     chat_id = update.effective_chat.id
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text='Enter the category',
+        reply_markup=markup_category
+    )
+
+    return ENTER_QUESTION_TEXT
+
+
+async def add_question(update: Update, context: CallbackContext) -> int:
+    chat_id = update.effective_chat.id
+    context.chat_data['category'] = update.message.text
     await context.bot.send_message(
         chat_id=chat_id,
         text='Enter the question text',
@@ -205,33 +218,15 @@ async def enter_other_answer4(update: Update, context: CallbackContext) -> int:
         text='Enter the fourth answer',
     )
 
-    return ENTER_CATEGORY
-
-
-async def enter_category(update: Update, context: CallbackContext) -> int:
-    chat_id = update.effective_chat.id
-    context.chat_data['answer4'] = update.message.text
-
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text='Enter the category',
-        reply_markup=markup_category
-    )
-
     return THANKS
 
 
 async def thanks_for_adding_question(update: Update, context: CallbackContext) -> int:
-    if update.message.text not in Dicts.categories:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='Invalid category',
-        )
-        return ENTER_CATEGORY
+    context.chat_data['answer4'] = update.message.text
 
     chat_id = update.effective_chat.id
     db.insert_question(
-        category=update.message.text.lower(),
+        category=context.chat_data['category'],
         question=context.chat_data['question_text'],
         correct_answer=context.chat_data['correct_answer'],
         answers=','.join([
@@ -253,7 +248,6 @@ async def thanks_for_adding_question(update: Update, context: CallbackContext) -
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(token).build()
-
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler('start', start),
                       MessageHandler(filters.Regex("^Start Game$"), callback=startGame),
@@ -264,8 +258,11 @@ if __name__ == '__main__':
                 MessageHandler(filters.Regex("^Info$"), callback=info),
                 MessageHandler(filters.Regex("^Leader Board$"), callback=leader_board),
                 ConversationHandler(
-                    entry_points=[MessageHandler(filters.Regex("^Add Question$"), callback=add_question)],
+                    entry_points=[MessageHandler(filters.Regex("^Add Question$"), callback=enter_category)],
                     states={
+                        ENTER_QUESTION_TEXT: [
+                            MessageHandler(filters.Regex(".*"), callback=add_question),
+                        ],
                         ENTER_CORRECT_ANSWER: [
                             MessageHandler(filters.Regex(".*"), callback=enter_correct_answer),
                         ],
@@ -277,9 +274,6 @@ if __name__ == '__main__':
                         ],
                         ENTER_ANSWER4: [
                             MessageHandler(filters.Regex(".*"), callback=enter_other_answer4),
-                        ],
-                        ENTER_CATEGORY: [
-                            MessageHandler(filters.Regex(".*"), callback=enter_category),
                         ],
                         THANKS: [
                             MessageHandler(filters.Regex(".*"), callback=thanks_for_adding_question),
@@ -297,6 +291,7 @@ if __name__ == '__main__':
         },
         fallbacks=[CommandHandler('quit', start)],
     ))
+
 
     Functions.set_bot_commands(application)
 
