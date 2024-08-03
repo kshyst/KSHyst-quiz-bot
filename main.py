@@ -279,7 +279,8 @@ if __name__ == '__main__':
                             MessageHandler(filters.Regex(".*"), callback=thanks_for_adding_question),
                         ],
                     },
-                    fallbacks=[],
+                    fallbacks=[CommandHandler('quit', start),
+                               CommandHandler('start', start)],
                 ),
             ],
             CATEGORY: [
@@ -289,9 +290,9 @@ if __name__ == '__main__':
                 CallbackQueryHandler(game)
             ],
         },
-        fallbacks=[CommandHandler('quit', start)],
+        fallbacks=[CommandHandler('quit', start),
+                   CommandHandler('start', start)],
     ))
-
 
     Functions.set_bot_commands(application)
 
