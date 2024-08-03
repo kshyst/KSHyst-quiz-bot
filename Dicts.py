@@ -5,7 +5,6 @@ categories = ['Math', 'Celebrities', 'Movies', 'Vehicles', 'Anime']
 
 reply_keyboard = [
     ["Start Game", "Leader Board"],
-    # ["Number of siblings", "Something else..."],
     ["Info"], ["Add Question"]
 ]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)

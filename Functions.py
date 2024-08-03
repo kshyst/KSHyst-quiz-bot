@@ -52,11 +52,11 @@ def getQuestions(cat: str) -> list:
     elif cat == 'Anime':
         data = db.get_all_anime_questions()
     else:
-        return []  # Return an empty list if the category is not recognized
+        return []
 
     questions = []
 
-    # Limit to 5 questions
+    #TODO make it choose random
     for i, question in enumerate(data):
         if i == 5:
             break
