@@ -150,7 +150,7 @@ async def enter_category(update: Update, context: CallbackContext) -> int:
             chat_id=update.effective_chat.id,
             text='This command only works in a private chat with this bot',
         )
-        return -1
+        return MAIN_MENU
     chat_id = update.effective_chat.id
 
     await context.bot.send_message(
